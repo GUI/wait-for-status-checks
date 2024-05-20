@@ -57,6 +57,7 @@ function run() {
             ignore.push(context.job);
             const matchPattern = core.getInput('match_pattern') || undefined;
             const ignorePattern = core.getInput('ignore_pattern') || undefined;
+            const ignoreCancelledDuplicates = core.getBooleanInput('ignore_cancelled_duplicates');
             const delaySeconds = parseInt(core.getInput('delay') || '0');
             yield (0, wait_1.wait)(delaySeconds * 1000);
             yield (0, poll_1.poll)({
@@ -67,6 +68,7 @@ function run() {
                 ignoreChecks: ignore,
                 matchPattern,
                 ignorePattern,
+                ignoreCancelledDuplicates,
                 // optional
                 intervalSeconds: parseInt(core.getInput('interval') || '10'),
                 timeoutSeconds: parseInt(core.getInput('timeout') || '3600')
@@ -134,7 +136,7 @@ const core = __importStar(__nccwpck_require__(2186));
 const wait_1 = __nccwpck_require__(5817);
 function poll(config) {
     return __awaiter(this, void 0, void 0, function* () {
-        const { client, owner, repo, ref, intervalSeconds, timeoutSeconds, ignoreChecks, matchPattern, ignorePattern } = config;
+        const { client, owner, repo, ref, intervalSeconds, timeoutSeconds, ignoreChecks, matchPattern, ignorePattern, ignoreCancelledDuplicates } = config;
         let elapsedSeconds = 0;
         core.info('Starting polling GitHub Check runs...');
         core.info(`timeout: ${timeoutSeconds} seconds`);
@@ -183,6 +185,23 @@ function poll(config) {
                     core.debug(`Filtering check runs by ignore pattern: ${ignorePattern}`);
                     const pattern = new RegExp(ignorePattern);
                     check_runs = check_runs.filter(run => !pattern.test(run.name));
+                }
+                if (ignoreCancelledDuplicates) {
+                    core.info('Filtering check runs to ignore cancelled duplicates');
+                    core.info(`Before sort: ${JSON.stringify(check_runs, null, 2)}`);
+                    // Sort by ID so the latest are first and we only keep those (assumes
+                    // incrementing ID values).
+                    check_runs.sort((a, b) => b.id - a.id);
+                    core.info(`After sort: ${JSON.stringify(check_runs, null, 2)}`);
+                    const seenRunNames = {};
+                    check_runs = check_runs.filter(run => {
+                        if (seenRunNames[run.name] && run.conclusion === 'cancelled') {
+                            core.info(`Removing cancelled duplicate for ${JSON.stringify(run)}`);
+                            return false;
+                        }
+                        seenRunNames[run.name] = true;
+                        return true;
+                    });
                 }
                 core.info(`Parse ${check_runs.length} check runs`);
                 for (const run of check_runs) {

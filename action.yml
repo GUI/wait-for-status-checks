@@ -20,6 +20,8 @@ inputs:
     description: 'Regex match GitHub checks that should be ignored'
   ignore:
     description: 'GitHub checks that should be ignored (default ignores the current job)'
+  ignore_cancelled_duplicates:
+    description: 'Whether to ignore `cancelled` runs that were subsequently run again'
 runs:
   using: 'node20'
   main: 'dist/index.js'

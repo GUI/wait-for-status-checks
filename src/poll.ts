@@ -18,6 +18,8 @@ export interface Config {
 
   matchPattern?: string
   ignorePattern?: string
+
+  ignoreCancelledDuplicates: boolean
 }
 
 export async function poll(config: Config): Promise<void> {
@@ -30,7 +32,8 @@ export async function poll(config: Config): Promise<void> {
     timeoutSeconds,
     ignoreChecks,
     matchPattern,
-    ignorePattern
+    ignorePattern,
+    ignoreCancelledDuplicates
   } = config
   let elapsedSeconds = 0
 
@@ -96,6 +99,27 @@ export async function poll(config: Config): Promise<void> {
         core.debug(`Filtering check runs by ignore pattern: ${ignorePattern}`)
         const pattern = new RegExp(ignorePattern)
         check_runs = check_runs.filter(run => !pattern.test(run.name))
+      }
+
+      if (ignoreCancelledDuplicates) {
+        core.info('Filtering check runs to ignore cancelled duplicates')
+        core.info(`Before sort: ${JSON.stringify(check_runs, null, 2)}`)
+
+        // Sort by ID so the latest are first and we only keep those (assumes
+        // incrementing ID values).
+        check_runs.sort((a, b) => b.id - a.id)
+        core.info(`After sort: ${JSON.stringify(check_runs, null, 2)}`)
+
+        const seenRunNames: {[key: string]: boolean} = {}
+        check_runs = check_runs.filter(run => {
+          if (seenRunNames[run.name] && run.conclusion === 'cancelled') {
+            core.info(`Removing cancelled duplicate for ${JSON.stringify(run)}`)
+            return false
+          }
+
+          seenRunNames[run.name] = true
+          return true
+        })
       }
 
       core.info(`Parse ${check_runs.length} check runs`)

@@ -20,6 +20,9 @@ async function run(): Promise<void> {
 
     const matchPattern = core.getInput('match_pattern') || undefined
     const ignorePattern = core.getInput('ignore_pattern') || undefined
+    const ignoreCancelledDuplicates = core.getBooleanInput(
+      'ignore_cancelled_duplicates'
+    )
 
     const delaySeconds = parseInt(core.getInput('delay') || '0')
     await wait(delaySeconds * 1000)
@@ -33,6 +36,7 @@ async function run(): Promise<void> {
 
       matchPattern,
       ignorePattern,
+      ignoreCancelledDuplicates,
 
       // optional
       intervalSeconds: parseInt(core.getInput('interval') || '10'),
